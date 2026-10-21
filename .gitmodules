@@ -1,3 +1,4 @@
 [submodule "cubeb-sys/libcubeb"]
 	path = cubeb-sys/libcubeb
-	url = https://github.com/mozilla/cubeb
+	url = https://github.com/shumvgolove/cubeb
+	branch = simplex
