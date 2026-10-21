@@ -77,8 +77,10 @@ impl DeviceRef {
     /// Gets the output device name.
     ///
     /// May return `None` if there is no output device.
+    /// `None` if the string is not valid UTF-8.
     pub fn output_name(&self) -> Option<&str> {
-        self.output_name_bytes().map(|b| str::from_utf8(b).unwrap())
+        self.output_name_bytes()
+            .and_then(|b| str::from_utf8(b).ok())
     }
 
     pub fn output_name_bytes(&self) -> Option<&[u8]> {
@@ -88,8 +90,9 @@ impl DeviceRef {
     /// Gets the input device name.
     ///
     /// May return `None` if there is no input device.
+    /// `None` if the string is not valid UTF-8.
     pub fn input_name(&self) -> Option<&str> {
-        self.input_name_bytes().map(|b| str::from_utf8(b).unwrap())
+        self.input_name_bytes().and_then(|b| str::from_utf8(b).ok())
     }
 
     pub fn input_name_bytes(&self) -> Option<&[u8]> {
@@ -118,8 +121,9 @@ impl DeviceInfoRef {
     }
 
     /// Device identifier which might be presented in a UI.
+    /// `None` if the string is not valid UTF-8.
     pub fn device_id(&self) -> Option<&str> {
-        self.device_id_bytes().map(|b| str::from_utf8(b).unwrap())
+        self.device_id_bytes().and_then(|b| str::from_utf8(b).ok())
     }
 
     pub fn device_id_bytes(&self) -> Option<&[u8]> {
@@ -127,9 +131,10 @@ impl DeviceInfoRef {
     }
 
     /// Friendly device name which might be presented in a UI.
+    /// `None` if the string is not valid UTF-8.
     pub fn friendly_name(&self) -> Option<&str> {
         self.friendly_name_bytes()
-            .map(|b| str::from_utf8(b).unwrap())
+            .and_then(|b| str::from_utf8(b).ok())
     }
 
     pub fn friendly_name_bytes(&self) -> Option<&[u8]> {
@@ -139,8 +144,9 @@ impl DeviceInfoRef {
     /// Two devices have the same group identifier if they belong to
     /// the same physical device; for example a headset and
     /// microphone.
+    /// `None` if the string is not valid UTF-8.
     pub fn group_id(&self) -> Option<&str> {
-        self.group_id_bytes().map(|b| str::from_utf8(b).unwrap())
+        self.group_id_bytes().and_then(|b| str::from_utf8(b).ok())
     }
 
     pub fn group_id_bytes(&self) -> Option<&[u8]> {
@@ -148,8 +154,10 @@ impl DeviceInfoRef {
     }
 
     /// Optional vendor name, may be None.
+    /// `None` if the string is not valid UTF-8.
     pub fn vendor_name(&self) -> Option<&str> {
-        self.vendor_name_bytes().map(|b| str::from_utf8(b).unwrap())
+        self.vendor_name_bytes()
+            .and_then(|b| str::from_utf8(b).ok())
     }
 
     pub fn vendor_name_bytes(&self) -> Option<&[u8]> {
@@ -226,8 +234,11 @@ impl DeviceInfoRef {
 
 #[cfg(test)]
 mod tests {
-    use crate::ffi::cubeb_device;
-    use crate::Device;
+    use crate::ffi::{cubeb_device, cubeb_device_info};
+    use crate::{Device, DeviceInfo};
+    use std::os::raw::c_char;
+
+    const NOT_UTF8: &[u8] = b"\xff\0";
 
     #[test]
     fn device_device_ref_same_ptr() {
@@ -236,5 +247,35 @@ mod tests {
         let device = unsafe { Device::from_ptr(ptr) };
         assert_eq!(device.as_ptr(), ptr);
         assert_eq!(device.as_ptr(), device.as_ref().as_ptr());
+    }
+
+    #[test]
+    fn device_names_not_utf8() {
+        let name = NOT_UTF8.as_ptr() as *mut c_char;
+        let mut raw = cubeb_device {
+            output_name: name,
+            input_name: name,
+        };
+        let device = unsafe { Device::from_ptr(&mut raw) };
+        assert_eq!(device.output_name(), None);
+        assert_eq!(device.input_name(), None);
+        assert_eq!(device.output_name_bytes(), Some(&NOT_UTF8[..1]));
+    }
+
+    #[test]
+    fn device_info_strings_not_utf8() {
+        let string = NOT_UTF8.as_ptr() as *const c_char;
+        let info = DeviceInfo::from(cubeb_device_info {
+            device_id: string,
+            friendly_name: string,
+            group_id: string,
+            vendor_name: string,
+            ..Default::default()
+        });
+        assert_eq!(info.device_id(), None);
+        assert_eq!(info.friendly_name(), None);
+        assert_eq!(info.group_id(), None);
+        assert_eq!(info.vendor_name(), None);
+        assert_eq!(info.friendly_name_bytes(), Some(&NOT_UTF8[..1]));
     }
 }
